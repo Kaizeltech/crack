@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Haxalotl</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+
+<body class="bg-gray-900 text-gray-200 min-h-screen flex items-center justify-center">
+    <div class="max-w-md p-6 bg-gray-800 rounded-lg shadow-md">
+        <h2 class="text-2xl font-semibold text-gray-200 mb-6">Haxalotl Timer</h2>
+        <form id="sessionForm">
+            <div class="mb-4">
+                <label for="topic" class="block text-sm font-medium text-gray-400">Session Topic</label>
+                <input type="text" id="topic" name="topic" class="mt-1 block w-full border-gray-600 bg-gray-700 text-gray-200 rounded-md shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50">
+            </div>
+            <div class="mb-4">
+                <label for="hours" class="block text-sm font-medium text-gray-400">Number of Hours</label>
+                <input type="number" id="hours" name="hours" class="mt-1 block w-full border-gray-600 bg-gray-700 text-gray-200 rounded-md shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50">
+            </div>
+            <div class="mb-4">
+                <label for="apiKey" class="block text-sm font-medium text-gray-400">API Key</label>
+                <input type="password" id="apiKey" name="apiKey" class="mt-1 block w-full border-gray-600 bg-gray-700 text-gray-200 rounded-md shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50">
+            </div>
+            <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50">Start Session</button>
+        </form>
+        <div id="timerContainer" class="mt-8 hidden">
+            <div id="timer" class="relative w-36 h-36 mx-auto">
+                <svg class="absolute left-0 top-0 h-full w-full">
+                    <circle id="timerCircle" class="text-transparent stroke-current stroke-2" cx="50%" cy="50%" r="45%" stroke-dasharray="283" stroke-dashoffset="0"></circle>
+                </svg>
+                <div id="timerText" class="absolute left-0 top-0 w-full h-full flex items-center justify-center text-2xl font-semibold text-gray-200"></div>
+            </div>
+            <div class="mt-4 flex justify-center space-x-4">
+                <button id="pauseBtn" class="bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50">Pause</button>
+                <button id="endEarlyBtn" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50">End Early</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const sessionForm = document.getElementById("sessionForm");
+            const timerContainer = document.getElementById("timerContainer");
+            const timerText = document.getElementById("timerText");
+            const timerCircle = document.getElementById("timerCircle");
+            const pauseBtn = document.getElementById("pauseBtn");
+            const endEarlyBtn = document.getElementById("endEarlyBtn");
+
+            let slackId = ''; 
+            let apiKey = '';
+
+
+            function getSlackIdFromUrl() {
+                const urlParams = new URLSearchParams(window.location.search);
+                return urlParams.get('userid');
+            }
+
+            function startSession(topic, hours) {
+                const startTime = Date.now();
+                const endTime = startTime + hours * 60 * 60 * 1000;
+
+
+                timerContainer.classList.remove('hidden');
+                sessionForm.classList.add('hidden');
+
+                const interval = setInterval(updateTimer, 1000);
+
+
+                updateTimer();
+
+
+                function updateTimer() {
+                    const now = Date.now();
+                    const remaining = endTime - now;
+
+                    if (remaining <= 0) {
+                        clearInterval(interval);
+                        timerText.textContent = 'Session Ended';
+                        timerCircle.style.strokeDashoffset = 283;
+                        return;
+                    }
+
+                    const secondsRemaining = Math.floor(remaining / 1000);
+                    const minutes = Math.floor(secondsRemaining / 60);
+                    const seconds = secondsRemaining % 60;
+
+                    timerText.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+                    const progress = (remaining / (hours * 60 * 60 * 1000)) * 283;
+                    timerCircle.style.strokeDashoffset = 283 - progress;
+
+                
+                    if (minutes === 5 && seconds === 0) {
+                        playDingSound();
+                    }
+
+      
+                    if (seconds === 0 || seconds === 3) {
+                        callApi('/api/start/:slackId', { work: topic });
+                    }
+                }
+
+            
+                function playDingSound() {
+                 pass
+                }
+
+                async function callApi(endpoint, data) {
+                    const url = `https://hackhour.hackclub.com${endpoint.replace(':slackId', slackId)}`;
+                    const headers = {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json',
+                    };
+                    try {
+                        const response = await fetch(url, {
+                            method: 'POST',
+                            headers: headers,
+                            body: JSON.stringify(data)
+                        });
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! Status: ${response.status}`);
+                        }
+                        const result = await response.json();
+                        console.log(result); 
+                    } catch (error) {
+                        console.error('Error:', error);
+                    }
+                }
+
+  
+                pauseBtn.addEventListener('click', function () {
+                    callApi('/api/pause/:slackId', {});
+                });
+
+
+                endEarlyBtn.addEventListener('click', function () {
+                    callApi('/api/cancel/:slackId', {});
+                    clearInterval(interval);
+                    timerText.textContent = 'Session Ended Early';
+                    timerCircle.style.strokeDashoffset = 283;
+                });
+            }
+
+
+            sessionForm.addEventListener('submit', function (event) {
+                event.preventDefault();
+                const topic = document.getElementById('topic').value.trim();
+                const hours = parseInt(document.getElementById('hours').value.trim(), 10);
+                apiKey = document.getElementById('apiKey').value.trim();
+
+  
+                if (!topic || !hours || isNaN(hours) || hours <= 0 || !apiKey) {
+                    alert('Please fill in all fields correctly.');
+                    return;
+                }
+
+               
+                localStorage.setItem('apiKey', apiKey);
+
+
+                slackId = getSlackIdFromUrl();
+
+                startSession(topic, hours);
+            });
+
+        
+            const storedApiKey = localStorage.getItem('apiKey');
+            if (storedApiKey) {
+                document.getElementById('apiKey').value = storedApiKey;
+            }
+        });
+    </script>
+</body>
+
+</html>
